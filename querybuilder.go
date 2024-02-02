@@ -135,14 +135,12 @@ func parseBracketParams(qs string, o *Options) error {
 }
 
 type QueryBuilder struct {
-	collection       string
 	fieldTypes       map[string]string
 	strictValidation bool
 }
 
 func NewQueryBuilder(collection string, strictValidation ...bool) *QueryBuilder {
 	qb := QueryBuilder{
-		collection:       collection,
 		fieldTypes:       map[string]string{},
 		strictValidation: false,
 	}
@@ -185,7 +183,7 @@ func (qb QueryBuilder) setProjectionOptions(fields []string, opts *options.FindO
 			if qb.strictValidation {
 				if _, ok := qb.fieldTypes[field]; !ok {
 					// we have a problem
-					return fmt.Errorf("field %s does not exist in collection %s", field, qb.collection)
+					return fmt.Errorf("field %s does not exist in collection", field)
 				}
 			}
 			prj[field] = val
@@ -212,7 +210,7 @@ func (qb QueryBuilder) setSortOptions(fields []string, opts *options.FindOptions
 			}
 			if qb.strictValidation {
 				if _, ok := qb.fieldTypes[field]; !ok {
-					return fmt.Errorf("field %s does not exist in collection %s", field, qb.collection)
+					return fmt.Errorf("field %s does not exist in collection", field)
 				}
 			}
 			sort[field] = val
