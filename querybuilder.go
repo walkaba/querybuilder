@@ -139,7 +139,7 @@ type QueryBuilder struct {
 	strictValidation bool
 }
 
-func NewQueryBuilder(collection string, strictValidation ...bool) *QueryBuilder {
+func NewQueryBuilder(strictValidation ...bool) *QueryBuilder {
 	qb := QueryBuilder{
 		fieldTypes:       map[string]string{},
 		strictValidation: false,
