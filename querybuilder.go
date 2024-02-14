@@ -347,8 +347,8 @@ type Meta struct {
 }
 
 type OutPagination struct {
-	Data []*interface{} `json:"data"`
-	Meta Meta           `json:"meta"`
+	Data *mongo.Cursor `json:"data"`
+	Meta Meta          `json:"meta"`
 }
 
 type PaginationBuilder struct {
@@ -391,10 +391,6 @@ func (c *PaginationBuilder) Find(payload string) (*OutPagination, error) {
 			return nil, err
 		}
 	}
-	var response []*interface{}
-	if err = cursor.All(context.TODO(), &response); err != nil {
-		return nil, err
-	}
 	var result OutPagination
 	page := int64(opt.Page["page"])
 	size := int64(opt.Page["size"])
@@ -404,7 +400,7 @@ func (c *PaginationBuilder) Find(payload string) (*OutPagination, error) {
 	} else {
 		result.Meta.Page.LastPage = page
 	}
-	result.Data = response
+	result.Data = cursor
 	result.Meta.Page.CurrentPage = page
 	result.Meta.Page.PerPage = size
 	result.Meta.Page.Total = count
