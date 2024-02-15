@@ -398,6 +398,25 @@ func (c *PaginationBuilder) Find(payload string) (*mongo.Cursor, error) {
 	return cursor, nil
 }
 
+func (c *PaginationBuilder) FindOne(payload string) (*mongo.SingleResult, error) {
+	opt, err := FromQueryString(payload)
+	if err != nil {
+		return nil, errors.New("invalid query string")
+	}
+	queryString := NewQueryBuilder(true)
+	var filters bson.D
+	if len(opt.Filter) > 0 {
+		filters, err = queryString.Filter(opt)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		filters = bson.D{}
+	}
+	result := c.collection.FindOne(context.TODO(), filters)
+	return result, nil
+}
+
 func (c *PaginationBuilder) Pagination(payload string) (*OutPagination, error) {
 	opt, err := FromQueryString(payload)
 	if err != nil {
