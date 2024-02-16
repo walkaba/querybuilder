@@ -257,8 +257,8 @@ func compareOperator(value string) string {
 		return "$lt"
 	case ">":
 		return "$gt"
-	//case "<=>":
-	//	return "like"
+	case "<=>":
+		return "like"
 	default:
 		return "$eq"
 	}
@@ -316,10 +316,19 @@ func checkFilter(field string, values []string) bson.D {
 				}},
 			}}
 		}
+		check := checkConstraints(values[0])
+		if check == "like" {
+			return bson.D{{
+				field,
+				bson.D{{
+					"$regex", values[0],
+				}},
+			}}
+		}
 		return bson.D{{
 			field,
 			bson.D{{
-				checkConstraints(values[0]),
+				check,
 				values[0],
 			}},
 		}}
