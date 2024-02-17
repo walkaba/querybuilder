@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 )
 
 var (
@@ -38,9 +39,6 @@ func FromQueryString(qs string) (Options, error) {
 	if err := parseBracketParams(uqs, &options); err != nil {
 		return options, err
 	}
-	if _, ok := options.Page["limit"]; ok {
-		options.SetPaginationStrategy(&OffsetStrategy{})
-	}
 	if _, ok := options.Page["size"]; ok {
 		options.SetPaginationStrategy(&PageSizeStrategy{})
 	}
@@ -48,7 +46,7 @@ func FromQueryString(qs string) (Options, error) {
 }
 
 func parseFields(qs *string) []string {
-	fields := []string{}
+	var fields []string
 	fieldNames := fieldsRE.FindAllStringSubmatch(extract(qs, *fieldsRE), -1)
 	for fieldNames != nil {
 		for _, field := range fieldNames {
@@ -67,28 +65,28 @@ func parseFields(qs *string) []string {
 }
 
 func extract(qs *string, re regexp.Regexp) string {
-	coords := re.FindStringIndex(*qs)
+	cords := re.FindStringIndex(*qs)
 	var r string
-	if coords != nil {
-		if coords[0] == 0 {
-			r = (*qs)[coords[0]:coords[1]]
-			*qs = (*qs)[coords[1]:]
+	if cords != nil {
+		if cords[0] == 0 {
+			r = (*qs)[cords[0]:cords[1]]
+			*qs = (*qs)[cords[1]:]
 			return r
 		}
-		if coords[1] == len(*qs) {
-			r = (*qs)[coords[0]:coords[1]]
-			*qs = (*qs)[0:coords[0]]
+		if cords[1] == len(*qs) {
+			r = (*qs)[cords[0]:cords[1]]
+			*qs = (*qs)[0:cords[0]]
 			return r
 		}
-		r = (*qs)[coords[0]:coords[1]]
-		*qs = fmt.Sprintf("%s%s", (*qs)[0:coords[0]], (*qs)[coords[1]:])
+		r = (*qs)[cords[0]:cords[1]]
+		*qs = fmt.Sprintf("%s%s", (*qs)[0:cords[0]], (*qs)[cords[1]:])
 		return r
 	}
 	return r
 }
 
 func parseSort(qs *string) []string {
-	sort := []string{}
+	var sort []string
 	fieldNames := sortRE.FindAllStringSubmatch(extract(qs, *sortRE), -1)
 	for fieldNames != nil {
 		for _, field := range fieldNames {
@@ -379,6 +377,49 @@ func NewPaginationBuilder(collection *mongo.Collection, route string) *Paginatio
 	return &PaginationBuilder{collection, route}
 }
 
+func (c *PaginationBuilder) DeleteOne(id string) error {
+	objectID, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return err
+	}
+	filter := bson.D{{"_id", objectID}}
+	_, err = c.collection.UpdateOne(context.TODO(), filter, bson.D{{"$set", bson.D{{"deletedAt", time.Now()}}}})
+	return err
+}
+
+func (c *PaginationBuilder) UpdateOne(id string, body interface{}) (*string, error) {
+	now := time.Now()
+	objectID, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return nil, err
+	}
+	filter := bson.D{{"_id", objectID}}
+	update := bson.D{
+		{"$set", body},
+		{"updatedAt", now},
+	}
+	_, err = c.collection.UpdateOne(context.TODO(), filter, update)
+	if err != nil {
+		return nil, err
+	}
+	return &id, nil
+}
+
+func (c *PaginationBuilder) InsertOne(body interface{}) (*string, error) {
+	now := time.Now()
+	document := bson.D{
+		{"$set", body},
+		{"createdAt", now},
+		{"updatedAt", now},
+	}
+	result, err := c.collection.InsertOne(context.TODO(), document)
+	if err != nil {
+		return nil, err
+	}
+	id := result.InsertedID.(primitive.ObjectID).Hex()
+	return &id, nil
+}
+
 func (c *PaginationBuilder) Find(payload string) (*mongo.Cursor, error) {
 	opt, err := FromQueryString(payload)
 	if err != nil {
@@ -432,7 +473,7 @@ func (c *PaginationBuilder) Pagination(payload string) (*OutPagination, error) {
 		return nil, errors.New("invalid query string")
 	}
 	queryString := NewQueryBuilder(true)
-	options, err := queryString.FindOptions(opt)
+	findOptions, err := queryString.FindOptions(opt)
 	if err != nil {
 		return nil, err
 	}
@@ -451,7 +492,7 @@ func (c *PaginationBuilder) Pagination(payload string) (*OutPagination, error) {
 			return nil, err
 		}
 	}
-	cursor, err := c.collection.Find(context.TODO(), filters, options)
+	cursor, err := c.collection.Find(context.TODO(), filters, findOptions)
 	if err != nil {
 		if err.Error() != "document is nil" {
 			return nil, err
