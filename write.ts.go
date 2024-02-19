@@ -3,6 +3,7 @@ package querybuilder
 import (
 	"context"
 	"errors"
+	"fmt"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -43,6 +44,7 @@ func (c *WriteBuilder) UpdateOne(id string, body interface{}) (*string, error) {
 func (c *WriteBuilder) InsertOne(body interface{}) (*string, error) {
 	now := time.Now()
 	bodyMap, ok := body.(map[string]interface{})
+	fmt.Println(bodyMap, ok)
 	if !ok {
 		return nil, errors.New("body must be a map")
 	}
