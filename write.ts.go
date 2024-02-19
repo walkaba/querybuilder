@@ -2,6 +2,7 @@ package querybuilder
 
 import (
 	"context"
+	"errors"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -41,12 +42,13 @@ func (c *WriteBuilder) UpdateOne(id string, body interface{}) (*string, error) {
 
 func (c *WriteBuilder) InsertOne(body interface{}) (*string, error) {
 	now := time.Now()
-	document := bson.D{
-		{"$set", body},
-		{"createdAt", now},
-		{"updatedAt", now},
+	bodyMap, ok := body.(map[string]interface{})
+	if !ok {
+		return nil, errors.New("body must be a map")
 	}
-	result, err := c.collection.InsertOne(context.TODO(), document)
+	bodyMap["createdAt"] = now
+	bodyMap["updatedAt"] = now
+	result, err := c.collection.InsertOne(context.TODO(), bodyMap)
 	if err != nil {
 		return nil, err
 	}
