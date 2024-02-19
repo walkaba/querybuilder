@@ -8,11 +8,15 @@ import (
 	"time"
 )
 
-func NewWriteBuilder(collection *mongo.Collection, route string) *PaginationBuilder {
-	return &PaginationBuilder{collection, route}
+type WriteBuilder struct {
+	collection *mongo.Collection
 }
 
-func (c *PaginationBuilder) DeleteOne(id string) error {
+func NewWriteBuilder(collection *mongo.Collection) *WriteBuilder {
+	return &WriteBuilder{collection}
+}
+
+func (c *WriteBuilder) DeleteOne(id string) error {
 	objectID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
 		return err
@@ -22,7 +26,7 @@ func (c *PaginationBuilder) DeleteOne(id string) error {
 	return err
 }
 
-func (c *PaginationBuilder) UpdateOne(id string, body interface{}) (*string, error) {
+func (c *WriteBuilder) UpdateOne(id string, body interface{}) (*string, error) {
 	objectID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
 		return nil, err
@@ -35,7 +39,7 @@ func (c *PaginationBuilder) UpdateOne(id string, body interface{}) (*string, err
 	return &id, nil
 }
 
-func (c *PaginationBuilder) InsertOne(body interface{}) (*string, error) {
+func (c *WriteBuilder) InsertOne(body interface{}) (*string, error) {
 	now := time.Now()
 	document := bson.D{
 		{"$set", body},
