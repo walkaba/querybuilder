@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
@@ -43,7 +44,7 @@ func (c *ReadBuilder) Find(payload string) (*mongo.Cursor, error) {
 	return cursor, nil
 }
 
-func (c *ReadBuilder) FindOne(payload string) (*mongo.SingleResult, error) {
+func (c *ReadBuilder) Search(payload string) (*mongo.SingleResult, error) {
 	opt, err := FromQueryString(payload)
 	if err != nil {
 		return nil, errors.New("invalid query string")
@@ -59,5 +60,15 @@ func (c *ReadBuilder) FindOne(payload string) (*mongo.SingleResult, error) {
 		filters = bson.D{}
 	}
 	result := c.collection.FindOne(context.TODO(), filters)
+	return result, nil
+}
+
+func (c *ReadBuilder) FindOne(id string) (*mongo.SingleResult, error) {
+	objectID, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return nil, err
+	}
+	filter := bson.D{{"_id", objectID}}
+	result := c.collection.FindOne(context.TODO(), filter)
 	return result, nil
 }
