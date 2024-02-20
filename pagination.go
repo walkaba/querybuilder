@@ -2,11 +2,10 @@ package querybuilder
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
-	"strconv"
-	"strings"
 )
 
 type PaginationBuilder struct {
@@ -99,39 +98,16 @@ func (c *PaginationBuilder) Pagination(payload string) (*OutPagination, error) {
 	var result OutPagination
 	page := int64(opt.Page["page"])
 	size := int64(opt.Page["size"])
-	skip := size * (page - 1)
-	if (page + 1) <= count {
-		result.Meta.Page.LastPage = page + 1
-	} else {
-		result.Meta.Page.LastPage = page
-	}
 	result.Data = cursor
-	result.Meta.Page.CurrentPage = page
-	result.Meta.Page.PerPage = size
-	result.Meta.Page.Total = count
-	result.Meta.Page.From = skip + 1
-	result.Meta.Page.To = skip + size
-	result.Meta.Links.First = c.generateLink(0, size) + c.generateFilters(opt.Filter)
-	result.Meta.Links.Last = c.generateLink(result.Meta.Page.LastPage, size) + c.generateFilters(opt.Filter)
-	result.Meta.Links.Prev = c.generateLink(result.Meta.Page.CurrentPage-1, size) + c.generateFilters(opt.Filter)
-	result.Meta.Links.Next = c.generateLink(result.Meta.Page.CurrentPage+1, size) + c.generateFilters(opt.Filter)
-	result.Meta.Filters = payload
-	return &result, nil
-}
-
-func (c *PaginationBuilder) generateLink(page, size int64) string {
-	return "/" + c.route + "/?page[page]=" + strconv.FormatInt(page, 10) + "&page[size]=" + strconv.FormatInt(size, 10)
-}
-
-func (c *PaginationBuilder) generateFilters(filters map[string][]string) string {
-	var result string
-	for key, value := range filters {
-		isArray := strings.Split(key, "][")
-		if len(isArray) > 1 {
-			result += "&filter[" + isArray[0] + "][" + isArray[1] + "]=" + strings.Join(value, ",")
-		} else {
-			result += "&filter[" + key + "]=" + strings.Join(value, ",")
-		}
+	var meta Meta
+	meta.Page.CurrentPage = page
+	meta.Page.PerPage = size
+	meta.Page.Total = count
+	meta.Filters = payload
+	bytes, err := json.Marshal(meta)
+	if err != nil {
+		return nil, err
 	}
-	return result
+	result.Meta = bytes
+	return &result, nil
 }
