@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/bsontype"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"net/url"
@@ -347,15 +346,34 @@ func checkFilter(field string, values []string) bson.D {
 			}
 
 			if isNull == true {
-				return bson.D{{
-					key[0], bson.D{{
-						"$elemMatch", bson.D{{
-							key[1], acc,
-						}},
-					}, {
-						key[0], bson.M{"$eq": bsontype.Null},
-					}},
-				}}
+
+				return bson.D{
+					{
+						Key: "$or",
+						Value: bson.A{
+							bson.D{{
+								Key: key[0],
+								Value: bson.M{
+									"$elemMatch": bson.M{
+										key[1]: acc}}},
+							},
+							bson.D{
+								{Key: key[0], Value: bson.M{"$exists": false}},
+							},
+							//bson.D{
+							//	{Key: key[0], Value: bson.A{"$size": 0}},
+							//},
+						},
+					},
+
+					//key[0], bson.D{{
+					//	"$elemMatch", bson.D{{
+					//		key[1], acc,
+					//	}},
+					//}, {
+					//	key[0], bson.M{"$eq": bsontype.Null},
+					//}},
+				}
 			}
 			return bson.D{{
 				key[0], bson.D{{
