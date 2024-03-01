@@ -360,9 +360,9 @@ func checkFilter(field string, values []string) bson.D {
 							bson.D{
 								{Key: key[0], Value: bson.M{"$exists": false}},
 							},
-							//bson.D{
-							//	{Key: key[0], Value: bson.A{"$size": 0}},
-							//},
+							bson.D{
+								{Key: key[0], Value: bson.M{"$size": bson.E{"$eq", 0}}},
+							},
 						},
 					},
 
