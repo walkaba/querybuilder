@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/bsontype"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"net/url"
@@ -278,20 +279,12 @@ func checkFilter(field string, values []string) bson.D {
 			if check == "$lt" || check == "$gt" || check == "$gte" || check == "$lte" {
 				var acc bson.D
 				for _, value := range values {
-					fmt.Println(value)
-					if value == "null" {
-						acc = append(acc, bson.E{
+					acc = append(acc,
+						bson.E{
 							Key:   check,
-							Value: bson.M{"$eq": nil},
-						})
-					} else {
-						acc = append(acc,
-							bson.E{
-								Key:   check,
-								Value: value,
-							},
-						)
-					}
+							Value: value,
+						},
+					)
 				}
 				return bson.D{{
 					field,
@@ -335,13 +328,50 @@ func checkFilter(field string, values []string) bson.D {
 				values[0],
 			}},
 		}}
-	}
+	} else {
+		if len(values) > 1 {
+			check := checkConstraints(values[0])
+			var acc bson.D
+			isNull := false
+			for _, value := range values {
+				if value != "null" {
+					acc = append(acc,
+						bson.E{
+							Key:   check,
+							Value: value,
+						},
+					)
+				} else {
+					isNull = true
+				}
+			}
 
-	return bson.D{{
-		key[0], bson.D{{
-			"$elemMatch", bson.D{{
-				key[1], values[0],
+			if isNull == true {
+				return bson.D{{
+					key[0], bson.D{{
+						"$elemMatch", bson.D{{
+							key[1], acc,
+						}},
+					}, {
+						key[0], bson.M{"$eq": bsontype.Null},
+					}},
+				}}
+			}
+			return bson.D{{
+				key[0], bson.D{{
+					"$elemMatch", bson.D{{
+						key[1], acc,
+					}},
+				}},
+			}}
+		}
+
+		return bson.D{{
+			key[0], bson.D{{
+				"$elemMatch", bson.D{{
+					key[1], values[0],
+				}},
 			}},
-		}},
-	}}
+		}}
+	}
 }
