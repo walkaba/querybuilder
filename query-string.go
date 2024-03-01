@@ -278,12 +278,20 @@ func checkFilter(field string, values []string) bson.D {
 			if check == "$lt" || check == "$gt" || check == "$gte" || check == "$lte" {
 				var acc bson.D
 				for _, value := range values {
-					acc = append(acc,
-						bson.E{
+					fmt.Println(value)
+					if value == "null" {
+						acc = append(acc, bson.E{
 							Key:   check,
-							Value: value,
-						},
-					)
+							Value: bson.M{"$eq": nil},
+						})
+					} else {
+						acc = append(acc,
+							bson.E{
+								Key:   check,
+								Value: value,
+							},
+						)
+					}
 				}
 				return bson.D{{
 					field,
