@@ -32,7 +32,18 @@ func (c *WriteBuilder) UpdateOne(id string, body interface{}) (*string, error) {
 		return nil, err
 	}
 	filter := bson.D{{"_id", objectID}}
-	_, err = c.collection.UpdateOne(context.TODO(), filter, body)
+	now := time.Now()
+	bodyMap := bson.M{}
+	bodyBytes, err := bson.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	err = bson.Unmarshal(bodyBytes, &bodyMap)
+	if err != nil {
+		return nil, err
+	}
+	bodyMap["updatedAt"] = now
+	_, err = c.collection.UpdateOne(context.TODO(), filter, bodyMap)
 	if err != nil {
 		return nil, err
 	}
