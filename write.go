@@ -36,8 +36,6 @@ func (c *WriteBuilder) UpdateOne(id string, update bson.M) (*string, error) {
 	now := time.Now()
 	if setFields, ok := update["$set"].(bson.M); ok {
 		setFields["updatedAt"] = now
-	} else {
-		update["$set"] = bson.M{"updatedAt": now}
 	}
 	_, err = c.collection.UpdateOne(context.TODO(), filter, update)
 	if err != nil {
