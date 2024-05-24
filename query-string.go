@@ -3,13 +3,14 @@ package querybuilder
 import (
 	"errors"
 	"fmt"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo/options"
 	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 var (
@@ -286,8 +287,8 @@ func checkFilter(field string, values []string) bson.D {
 					)
 				}
 				return bson.D{{
-					field,
-					acc,
+					Key:   field,
+					Value: acc,
 				}}
 			}
 
@@ -296,35 +297,35 @@ func checkFilter(field string, values []string) bson.D {
 				includes = append(includes, value)
 			}
 			return bson.D{{
-				field,
-				bson.D{{
-					"$in", includes,
+				Key: field,
+				Value: bson.D{{
+					Key: "$in", Value: includes,
 				}},
 			}}
 		}
 		if field == "_id" {
 			res, _ := primitive.ObjectIDFromHex(values[0])
 			return bson.D{{
-				field,
-				bson.D{{
-					"$eq", res,
+				Key: field,
+				Value: bson.D{{
+					Key: "$eq", Value: res,
 				}},
 			}}
 		}
 		check := checkConstraints(values[0])
 		if check == "like" {
 			return bson.D{{
-				field,
-				bson.D{{
-					"$regex", values[0],
+				Key: field,
+				Value: bson.D{{
+					Key: "$regex", Value: values[0],
 				}},
 			}}
 		}
 		return bson.D{{
-			field,
-			bson.D{{
-				check,
-				values[0],
+			Key: field,
+			Value: bson.D{{
+				Key:   check,
+				Value: values[0],
 			}},
 		}}
 	} else {
@@ -345,8 +346,7 @@ func checkFilter(field string, values []string) bson.D {
 				}
 			}
 
-			if isNull == true {
-
+			if isNull {
 				return bson.D{
 					{
 						Key: "$or",
@@ -365,18 +365,18 @@ func checkFilter(field string, values []string) bson.D {
 				}
 			}
 			return bson.D{{
-				key[0], bson.D{{
-					"$elemMatch", bson.D{{
-						key[1], acc,
+				Key: key[0], Value: bson.D{{
+					Key: "$elemMatch", Value: bson.D{{
+						Key: key[1], Value: acc,
 					}},
 				}},
 			}}
 		}
 
 		return bson.D{{
-			key[0], bson.D{{
-				"$elemMatch", bson.D{{
-					key[1], values[0],
+			Key: key[0], Value: bson.D{{
+				Key: "$elemMatch", Value: bson.D{{
+					Key: key[1], Value: values[0],
 				}},
 			}},
 		}}

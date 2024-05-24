@@ -68,7 +68,7 @@ func (c *ReadBuilder) FindOne(id string) (*mongo.SingleResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	filter := bson.D{{"_id", objectID}}
+	filter := bson.D{{Key: "_id", Value: objectID}}
 	result := c.collection.FindOne(context.TODO(), filter)
 	return result, nil
 }
