@@ -316,16 +316,31 @@ func (qb QueryBuilder) Filter(opt Options) (bson.D, error) {
 func parseFilters(filter map[string]interface{}) bson.D {
 	var filters bson.D
 	for k, v := range filter {
+		hasReservedKey := isReservedKey(k)
 		switch v := v.(type) {
 		case []interface{}:
 			subParts, _ := processArray(k, v)
 			filters = append(filters, bson.E{Key: k, Value: subParts})
 			continue
 		case []string:
+			if hasReservedKey {
+				subParts, _ := processMap(k, v)
+				for key, value := range subParts {
+					filters = append(filters, bson.E{Key: key, Value: value})
+				}
+				continue
+			}
 			subParts := checkFilter(k, v)
 			filters = append(filters, subParts...)
 			continue
 		case string:
+			if hasReservedKey {
+				subParts, _ := processMap(k, v)
+				for key, value := range subParts {
+					filters = append(filters, bson.E{Key: key, Value: value})
+				}
+				continue
+			}
 			subParts := checkFilter(k, []string{v})
 			filters = append(filters, subParts...)
 			continue
@@ -491,11 +506,14 @@ func processArray(operator string, value interface{}) ([]interface{}, error) {
 	}
 	var parts []interface{}
 	for _, v := range values {
-		subPart := primitive.D{}
 		if result, ok := v.(map[string]interface{}); ok {
-			subPart = parseFilters(result)
+			subPart := parseFilters(result)
+			parts = append(parts, subPart)
+			continue
+		} else {
+			parts = append(parts, v)
+			continue
 		}
-		parts = append(parts, subPart)
 	}
 	return parts, nil
 }
@@ -535,17 +553,18 @@ func processMap(key string, value interface{}) (map[string]interface{}, error) {
 
 func isReservedKey(key string) bool {
 	reservedKeys := map[string]bool{
-		"$in":   true,
-		"$size": true,
-		"$or":   true,
-		"$not":  true,
-		"$lte":  true,
-		"$gte":  true,
-		"$ne":   true,
-		"$lt":   true,
-		"$gt":   true,
-		"$like": true,
-		"$eq":   true,
+		"$in":        true,
+		"$size":      true,
+		"$or":        true,
+		"$not":       true,
+		"$lte":       true,
+		"$gte":       true,
+		"$ne":        true,
+		"$lt":        true,
+		"$gt":        true,
+		"$like":      true,
+		"$eq":        true,
+		"$elemMatch": true,
 	}
 	return reservedKeys[key]
 }
@@ -556,6 +575,7 @@ func formatArray(value interface{}) []interface{} {
 		return []interface{}{}
 	}
 	var parts []interface{}
+	fmt.Println(value)
 	for _, v := range values {
 		parts = append(parts, formatValue(v))
 	}
@@ -570,6 +590,11 @@ func formatValue(value interface{}) interface{} {
 		}
 		return v
 	case float64, int, bool:
+		return v
+	case []interface{}, interface{}:
+		if result, ok := v.(map[string]interface{}); ok {
+			return parseFilters(result)
+		}
 		return v
 	default:
 		return v
