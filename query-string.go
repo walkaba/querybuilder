@@ -320,15 +320,21 @@ func parseFilters(filter map[string]interface{}) bson.D {
 		case []interface{}:
 			subParts, _ := processArray(k, v)
 			filters = append(filters, bson.E{Key: k, Value: subParts})
-			return filters
+			continue
 		case []string:
-			return checkFilter(k, v)
+			subParts := checkFilter(k, v)
+			filters = append(filters, subParts...)
+			continue
+		case string:
+			subParts := checkFilter(k, []string{v})
+			filters = append(filters, subParts...)
+			continue
 		default:
 			subParts, _ := processMap(k, v)
 			for key, value := range subParts {
 				filters = append(filters, bson.E{Key: key, Value: value})
 			}
-			return filters
+			continue
 		}
 	}
 	return filters
