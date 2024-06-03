@@ -514,12 +514,16 @@ func processMap(key string, value interface{}) (map[string]interface{}, error) {
 		switch subKey {
 		case "$in":
 			result[subKey] = formatArray(subValue)
+			continue
 		case "$size", "$not", "$lte", "$gte", "$ne", "$lt", "$gt", "$eq":
 			result[subKey] = subValue
-		case "like":
-			result[subKey] = subValue
+			continue
+		case "$like":
+			result["$regex"] = subValue
+			continue
 		default:
 			result[subKey] = formatValue(subValue)
+			continue
 		}
 	}
 	if len(result) > 0 && !hasReservedKey {
@@ -539,7 +543,7 @@ func isReservedKey(key string) bool {
 		"$ne":   true,
 		"$lt":   true,
 		"$gt":   true,
-		"like":  true,
+		"$like": true,
 		"$eq":   true,
 	}
 	return reservedKeys[key]
