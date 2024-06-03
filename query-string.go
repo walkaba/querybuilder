@@ -520,6 +520,7 @@ func processMap(key string, value interface{}) (map[string]interface{}, error) {
 			continue
 		case "$like":
 			result["$regex"] = subValue
+			result["$options"] = "mi"
 			continue
 		default:
 			result[subKey] = formatValue(subValue)
