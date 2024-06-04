@@ -9,10 +9,10 @@ type Options struct {
 	ps IPaginationStrategy
 	qs string
 
-	Fields []string            `json:"fields,omitempty"`
-	Filter map[string][]string `json:"filter,omitempty"`
-	Page   map[string]int      `json:"page"`
-	Sort   []string            `json:"sort,omitempty"`
+	Fields []string               `json:"fields,omitempty"`
+	Filter map[string]interface{} `json:"filter,omitempty"`
+	Page   map[string]int         `json:"page"`
+	Sort   []string               `json:"sort,omitempty"`
 }
 
 func (o Options) ContainsFilterField(field string) bool {
@@ -72,22 +72,47 @@ func (o *Options) SetPaginationStrategy(ps IPaginationStrategy) {
 	o.ps = ps
 }
 
-func buildQuerystring(filter map[string][]string, fields []string, page string, sort []string) string {
-	b := strings.Builder{}
+func buildFilterQuery(b *strings.Builder, filter map[string]interface{}, prefix string) {
 	ra := false
-	for field, filter := range filter {
+
+	for key, value := range filter {
 		if ra {
-			fmt.Fprint(&b, "&")
+			fmt.Fprint(b, "&")
+		}
+		switch v := value.(type) {
+		case map[string]interface{}:
+			newPrefix := key
+			if prefix != "" {
+				newPrefix = prefix + "[" + key + "]"
+			}
+			buildFilterQuery(b, v, newPrefix)
+		case []interface{}:
+			for i, subValue := range v {
+				newPrefix := fmt.Sprintf("%s[%d]", key, i)
+				if prefix != "" {
+					newPrefix = prefix + "[" + newPrefix + "]"
+				}
+				if subMap, ok := subValue.(map[string]interface{}); ok {
+					buildFilterQuery(b, subMap, newPrefix)
+				} else {
+					fmt.Fprintf(b, "filter[%s]=", newPrefix)
+					fmt.Fprint(b, subValue)
+				}
+			}
+		default:
+			fmt.Fprintf(b, "filter[%s]=", prefix+key)
+			fmt.Fprint(b, v)
 		}
 		ra = true
-		fmt.Fprintf(&b, "filter[%s]=", field)
-		for i, value := range filter {
-			if i > 0 {
-				fmt.Fprint(&b, ",")
-			}
-			fmt.Fprint(&b, value)
-		}
 	}
+}
+
+func buildQuerystring(filter map[string]interface{}, fields []string, page string, sort []string) string {
+	b := strings.Builder{}
+	ra := false
+
+	buildFilterQuery(&b, filter, "")
+
 	if len(fields) > 0 {
 		if ra {
 			fmt.Fprint(&b, "&")
@@ -99,13 +124,14 @@ func buildQuerystring(filter map[string][]string, fields []string, page string, 
 			}
 			fmt.Fprint(&b, field)
 		}
+		ra = true
 	}
 	if page != "" {
 		if ra {
 			fmt.Fprint(&b, "&")
 		}
-		ra = true
 		fmt.Fprint(&b, page)
+		ra = true
 	}
 	if len(sort) > 0 {
 		if ra {

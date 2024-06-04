@@ -100,29 +100,36 @@ func parseSort(qs *string) []string {
 	return sort
 }
 
+func isUnableToParse(terms [][]string, values [][]string) error {
+	if len(terms) > 0 && len(terms) > len(values) {
+		return errors.New("unable to parse: an object hierarchy has been provided")
+	}
+	return nil
+}
+
 func parseBracketParams(qs string, o *Options) error {
-	o.Filter = map[string][]string{}
+	o.Filter = map[string]interface{}{}
 	o.Page = map[string]int{}
 	terms := bracketRE.FindAllStringSubmatch(qs, -1)
 	values := bracketValueRE.FindAllStringSubmatch(qs, -1)
-	if len(terms) > 0 && len(terms) > len(values) {
-		return errors.New("unable to parse: an object hierarchy has been provided")
+	err := isUnableToParse(terms, values)
+	if err != nil {
+		return err
+	}
+	if o.Filter == nil {
+		o.Filter = map[string]interface{}{}
+	}
+	if o.Page == nil {
+		o.Page = map[string]int{}
 	}
 	for i, term := range terms {
 		switch strings.ToLower(term[1]) {
 		case "filter":
-			if o.Filter == nil {
-				o.Filter = map[string][]string{}
+			err := SetJSONValue(term[2], values[i][1], o.Filter)
+			if err != nil {
+				return err
 			}
-			if commaRE.MatchString(values[i][1]) {
-				o.Filter[term[2]] = commaRE.Split(values[i][1], -1)
-				continue
-			}
-			o.Filter[term[2]] = []string{values[i][1]}
 		case "page":
-			if o.Page == nil {
-				o.Page = map[string]int{}
-			}
 			v, err := strconv.ParseInt(values[i][1], 0, 64)
 			if err != nil {
 				return err
@@ -131,6 +138,75 @@ func parseBracketParams(qs string, o *Options) error {
 		}
 	}
 	return nil
+}
+
+func validateValue(value interface{}) interface{} {
+	str := value.(string)
+	if valueInterger, err := strconv.Atoi(str); err == nil {
+		return valueInterger
+	} else if valueFloat, err := strconv.ParseFloat(str, 64); err == nil {
+		return valueFloat
+	} else {
+		return value
+	}
+}
+
+func setValueInMapOrArray(current interface{}, keys []string, value interface{}) interface{} {
+	if len(keys) == 0 {
+		strVal, ok := value.(string)
+		if ok && strings.Contains(strVal, ",") {
+			return strings.Split(strVal, ",")
+		}
+		return validateValue(value)
+	}
+
+	key := keys[0]
+	remainingKeys := keys[1:]
+
+	index, err := strconv.Atoi(key)
+	if err == nil {
+		var array []interface{}
+		if current != nil {
+			array = current.([]interface{})
+		}
+
+		if len(array) <= index {
+			newArray := make([]interface{}, index+1)
+			copy(newArray, array)
+			array = newArray
+		}
+
+		array[index] = setValueInMapOrArray(array[index], remainingKeys, value)
+		return array
+	} else {
+		var m map[string]interface{}
+		if current != nil {
+			m = current.(map[string]interface{})
+		} else {
+			m = make(map[string]interface{})
+		}
+
+		m[key] = setValueInMapOrArray(m[key], remainingKeys, value)
+		return m
+	}
+}
+
+func SetJSONValue(path string, value interface{}, filter map[string]interface{}) error {
+	if strings.HasPrefix(path, "$or][") {
+		keys := strings.Split(path, "][")
+		result := setValueInMapOrArray(filter, keys, value)
+		for k, v := range result.(map[string]interface{}) {
+			filter[k] = v
+		}
+		return nil
+	} else {
+		if commaRE.MatchString(value.(string)) {
+			filter[path] = commaRE.Split(value.(string), -1)
+			return nil
+		}
+		filter[path] = []string{value.(string)}
+		return nil
+	}
 }
 
 type QueryBuilder struct {
@@ -168,54 +244,54 @@ func (qb QueryBuilder) setPaginationOptions(pagination map[string]int, opts *opt
 }
 
 func (qb QueryBuilder) setProjectionOptions(fields []string, opts *options.FindOptions) error {
-	if len(fields) > 0 {
-		prj := map[string]int{}
-		for _, field := range fields {
-			val := 1
-			if field[0:1] == "-" {
-				field = field[1:]
-				val = 0
-			}
-			if len(field) > 0 && field[0:1] == "+" {
-				field = field[1:]
-			}
-			if qb.strictValidation {
-				if _, ok := qb.fieldTypes[field]; !ok {
-					// we have a problem
-					return fmt.Errorf("field %s does not exist in collection", field)
-				}
-			}
-			prj[field] = val
-		}
-		if len(prj) > 0 {
-			opts.SetProjection(prj)
-		}
+	if len(fields) == 0 {
+		return nil
 	}
-
+	prj := map[string]int{}
+	for _, field := range fields {
+		val := 1
+		if field[0:1] == "-" {
+			field = field[1:]
+			val = 0
+		}
+		if len(field) > 0 && field[0:1] == "+" {
+			field = field[1:]
+		}
+		if qb.strictValidation {
+			if _, ok := qb.fieldTypes[field]; !ok {
+				return fmt.Errorf("field %s does not exist in collection", field)
+			}
+		}
+		prj[field] = val
+	}
+	if len(prj) > 0 {
+		opts.SetProjection(prj)
+	}
 	return nil
 }
 
 func (qb QueryBuilder) setSortOptions(fields []string, opts *options.FindOptions) error {
-	if len(fields) > 0 {
-		sort := map[string]int{}
-		for _, field := range fields {
-			val := 1
-			if field[0:1] == "-" {
-				field = field[1:]
-				val = -1
-			}
-			if field[0:1] == "+" {
-				field = field[1:]
-			}
-			if qb.strictValidation {
-				if _, ok := qb.fieldTypes[field]; !ok {
-					return fmt.Errorf("field %s does not exist in collection", field)
-				}
-			}
-			sort[field] = val
-		}
-		opts.SetSort(sort)
+	if len(fields) == 0 {
+		return nil
 	}
+	sort := map[string]int{}
+	for _, field := range fields {
+		val := 1
+		if field[0:1] == "-" {
+			field = field[1:]
+			val = -1
+		}
+		if field[0:1] == "+" {
+			field = field[1:]
+		}
+		if qb.strictValidation {
+			if _, ok := qb.fieldTypes[field]; !ok {
+				return fmt.Errorf("field %s does not exist in collection", field)
+			}
+		}
+		sort[field] = val
+	}
+	opts.SetSort(sort)
 	return nil
 }
 
@@ -232,11 +308,51 @@ func (qb QueryBuilder) FindOptions(qo Options) (*options.FindOptions, error) {
 }
 
 func (qb QueryBuilder) Filter(opt Options) (bson.D, error) {
-	var filters bson.D
-	for k, v := range opt.Filter {
-		filters = checkFilter(k, v)
-	}
+	filters := parseFilters(opt.Filter)
 	return filters, nil
+
+}
+
+func parseFilters(filter map[string]interface{}) bson.D {
+	var filters bson.D
+	for k, v := range filter {
+		hasReservedKey := isReservedKey(k)
+		switch v := v.(type) {
+		case []interface{}:
+			subParts, _ := processArray(k, v)
+			filters = append(filters, bson.E{Key: k, Value: subParts})
+			continue
+		case []string:
+			if hasReservedKey {
+				subParts, _ := processMap(k, v)
+				for key, value := range subParts {
+					filters = append(filters, bson.E{Key: key, Value: value})
+				}
+				continue
+			}
+			subParts := checkFilter(k, v)
+			filters = append(filters, subParts...)
+			continue
+		case string:
+			if hasReservedKey {
+				subParts, _ := processMap(k, v)
+				for key, value := range subParts {
+					filters = append(filters, bson.E{Key: key, Value: value})
+				}
+				continue
+			}
+			subParts := checkFilter(k, []string{v})
+			filters = append(filters, subParts...)
+			continue
+		default:
+			subParts, _ := processMap(k, v)
+			for key, value := range subParts {
+				filters = append(filters, bson.E{Key: key, Value: value})
+			}
+			continue
+		}
+	}
+	return filters
 }
 
 func compareOperator(value string) string {
@@ -380,5 +496,115 @@ func checkFilter(field string, values []string) bson.D {
 				}},
 			}},
 		}}
+	}
+}
+
+func processArray(operator string, value interface{}) ([]interface{}, error) {
+	values, ok := value.([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("invalid format for %s", operator)
+	}
+	var parts []interface{}
+	for _, v := range values {
+		if result, ok := v.(map[string]interface{}); ok {
+			subPart := parseFilters(result)
+			parts = append(parts, subPart)
+			continue
+		} else {
+			parts = append(parts, v)
+			continue
+		}
+	}
+	return parts, nil
+}
+
+func processMap(key string, value interface{}) (map[string]interface{}, error) {
+	subMap, ok := value.(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("invalid format for %s", key)
+	}
+	result := make(map[string]interface{})
+	hasReservedKey := false
+	for subKey, subValue := range subMap {
+		if isReservedKey(subKey) {
+			hasReservedKey = true
+		}
+		switch subKey {
+		case "$in":
+			result[subKey] = formatArray(subValue)
+			continue
+		case "$size", "$not", "$lte", "$gte", "$ne", "$lt", "$gt", "$eq":
+			result[subKey] = subValue
+			continue
+		case "$like":
+			result["$regex"] = subValue
+			result["$options"] = "mi"
+			continue
+		default:
+			result[subKey] = formatValue(subValue)
+			continue
+		}
+	}
+	if len(result) > 0 && !hasReservedKey {
+		return map[string]interface{}{key: map[string]interface{}{"$elemMatch": result}}, nil
+	}
+	return map[string]interface{}{key: result}, nil
+}
+
+func isReservedKey(key string) bool {
+	reservedKeys := map[string]bool{
+		"$in":        true,
+		"$size":      true,
+		"$or":        true,
+		"$not":       true,
+		"$lte":       true,
+		"$gte":       true,
+		"$ne":        true,
+		"$lt":        true,
+		"$gt":        true,
+		"$like":      true,
+		"$eq":        true,
+		"$elemMatch": true,
+	}
+	return reservedKeys[key]
+}
+
+func formatArray(value interface{}) []interface{} {
+	valuesAsStringList, ok := value.([]string)
+	if ok {
+		interfaceSlice := make([]interface{}, len(valuesAsStringList))
+		for i, v := range valuesAsStringList {
+			interfaceSlice[i] = v
+		}
+		return interfaceSlice
+	}
+	values, ok := value.([]interface{})
+	if !ok {
+		return []interface{}{value.(string)}
+	}
+	var parts []interface{}
+	fmt.Println(value)
+	for _, v := range values {
+		parts = append(parts, formatValue(v))
+	}
+	return parts
+}
+
+func formatValue(value interface{}) interface{} {
+	switch v := value.(type) {
+	case string:
+		if v == "null" {
+			return nil
+		}
+		return v
+	case float64, int, bool:
+		return v
+	case []interface{}, interface{}:
+		if result, ok := v.(map[string]interface{}); ok {
+			return parseFilters(result)
+		}
+		return v
+	default:
+		return v
 	}
 }
