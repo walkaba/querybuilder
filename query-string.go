@@ -570,9 +570,17 @@ func isReservedKey(key string) bool {
 }
 
 func formatArray(value interface{}) []interface{} {
+	valuesAsStringList, ok := value.([]string)
+	if ok {
+		interfaceSlice := make([]interface{}, len(valuesAsStringList))
+		for i, v := range valuesAsStringList {
+			interfaceSlice[i] = v
+		}
+		return interfaceSlice
+	}
 	values, ok := value.([]interface{})
 	if !ok {
-		return []interface{}{}
+		return []interface{}{value.(string)}
 	}
 	var parts []interface{}
 	fmt.Println(value)
